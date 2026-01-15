@@ -3,13 +3,16 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton
 from PyQt5.QtCore import Qt, QTimer, QPointF
 from PyQt5.QtGui import QPainter, QColor, QPen, QPainterPath
 
-class Rura :
+class Rura:
+    #init - sto specjalna metoda Pythona, która służy do inicjalizacji obiektu i ma konstruktor, który przechowuje dane które są wykorzystywane przy tworzeniu obiektu
     def __init__(self, punkty, grubosc =12, kolor = Qt.gray):
     # Konwersja listy krotek na obiekty QPointF
         self.punkty = [QPointF(float(p[0]), float(p[1])) for p in punkty]
+        #self służy do odróżniania siebie od innych obiektów, profesjonalnie: to referencja do samego obiektu, na którym aktualnie wywoływana jest metoda
+        #jest potrzebne, żeby pythong wiedział na jakim czymś pracować
         self.grubosc = grubosc
         self.kolor_rury = kolor
-        self.kolor_cieczy = QColor (0, 180, 255) # Jasny niebieski
+        self.kolor_cieczy = QColor(0, 180, 255) # Jasny niebieski
         self.czy_plynie = False
     def ustaw_przeplyw(self, plynie):
         self.czy_plynie = plynie
@@ -66,8 +69,8 @@ class Zbiornik:
         return self.aktualna_ilosc >= self.pojemnosc - 0.1
     
     # Punkty zaczepienia dla rur
-    def punkt_gora_srodek(self):return(self.x + self.width/2, self.y)
-    def punkt_dol_srodek(self) : return (self.x + self.width/2, self.y + self.height)
+    def punkt_gora_srodek(self): return(self.x + self.width/2, self.y)
+    def punkt_dol_srodek(self): return (self.x + self.width/2, self.y + self.height)
     def draw(self, painter):
 # 1. Rysowanie cieczy
         if self.poziom > 0:
@@ -78,30 +81,30 @@ class Zbiornik:
             painter.drawRect(int(self . x + 3), int(y_start), int(self.width - 6), int(h_cieczy - 2))
 
         # 2. Rysowanie obrysu
-        pen = QPen (Qt.white, 4)
+        pen = QPen (Qt.green, 4)
         pen.setJoinStyle(Qt.MiterJoin)
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(int(self.x), int(self.y), int(self.width), int( self.height) )
 
         # 3. Podpis
-        painter.setPen(Qt.white)
+        painter.setPen(Qt.black)
         painter.drawText(int(self.x), int(self.y - 10), self.nazwa)
 
 class SymulacjaKaskady(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Kaskada : Dol -> Gora ")
+        self.setWindowTitle("Przelewanie cieczy w zbiornikach")
         self.setFixedSize(900, 600)
-        self.setStyleSheet("background - color : #222; ")
+        self.setStyleSheet("background - color: #222;")
 
         # --- Konfiguracja Zbiornikow ( schodkowo ) ---
-        self.z1 = Zbiornik(50, 50, nazwa =" Zbiornik 1")
+        self.z1 = Zbiornik(50, 50, nazwa ="Zbiornik 1")
         self.z1.aktualna_ilosc = 100.0; self.z1.aktualizuj_poziom() # Pelny
-
-        self.z2 = Zbiornik(350, 200, nazwa =" Zbiornik 2")
-        self.z3 = Zbiornik(650, 350, nazwa =" Zbiornik 3")
-        self.zbiorniki = [self.z1, self.z2, self.z3]
+        self.z15 = Zbiornik(650, 50, nazwa ="Zbiornik 1.5")
+        self.z2 = Zbiornik(350, 200, nazwa ="Zbiornik 2")
+        self.z3 = Zbiornik(650, 350, nazwa ="Zbiornik 3")
+        self.zbiorniki = [self.z1, self.z2, self.z3, self.z15]
 
         # --- Konfiguracja Rur ---
         # Rura 1: Z1 (Dol) -> Z2 ( Gora )
@@ -111,21 +114,28 @@ class SymulacjaKaskady(QWidget):
 
         self.rura1 = Rura([p_start, (p_start[0], mid_y), (p_koniec[0], mid_y), p_koniec])
 
+        #rura 1.5 oraz 2
+        p_start15 = self.z15.punkt_dol_srodek()
+        p_koniec15 = self.z15.punkt_gora_srodek()
+        mid_y15 = (p_start15[1] + p_koniec15[1])/2
+
+        self.rura15 = Rura([p_start15, (p_start15[0], mid_y15), (p_koniec15[0],mid_y15), p_koniec15])
+
         # Rura 2: Z2 (Dol) -> Z3 ( Gora )
         p_start2 = self.z2.punkt_dol_srodek()
         p_koniec2 = self.z3.punkt_gora_srodek()
         mid_y2 = (p_start2 [1] + p_koniec2[1])/2
 
-        self.rura2 = Rura ([p_start2, (p_start2[0], mid_y2), (p_koniec2 [0], mid_y2 ), p_koniec2])
+        self.rura2 = Rura ([p_start2, (p_start2[0], mid_y2), (p_koniec2[0], mid_y2 ), p_koniec2])
         self.rury = [self.rura1, self.rura2]
 
         # --- Timer i Sterowanie ---
         self.timer = QTimer()
         self.timer.timeout.connect(self.logika_przeplywu)
 
-        self.btn = QPushButton(" Start / Stop ", self)
+        self.btn = QPushButton("Start / Stop", self)
         self.btn.setGeometry(50, 550, 100, 30)
-        self.btn.setStyleSheet(" background - color : #444; color : white ;")
+        self.btn.setStyleSheet("background - color : #444; color : black;")
         self.btn.clicked.connect(self.przelacz_symulacje)
 
         self.running = False
@@ -141,7 +151,7 @@ class SymulacjaKaskady(QWidget):
     def logika_przeplywu(self):
     # 1. Przeplyw Z1 -> Z2
         plynie_1 = False
-        if not self.z1.czy_pusty() and not self.z2.czy_pelny ():
+        if not self.z1.czy_pusty() and not self.z2.czy_pelny():
             ilosc = self.z1.usun_ciecz(self.flow_speed)
             self.z2.dodaj_ciecz(ilosc)
             plynie_1 = True
@@ -167,5 +177,5 @@ class SymulacjaKaskady(QWidget):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     okno = SymulacjaKaskady()
-    okno.show ()
+    okno.show()
     sys.exit(app.exec_())
