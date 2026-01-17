@@ -2,11 +2,12 @@ import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton
 from PyQt5.QtCore import Qt, QTimer, QPointF
 from PyQt5.QtGui import QPainter, QColor, QPen, QPainterPath
+import pyqtgraph as pg
 
 class Rura:
-    # __init__ – konstruktor rury, wywoływany przy tworzeniu obiektu
+    # __init__ – konstruktor rury, tworzy się przy tworzeniu obiektu
     def __init__(self, punkty, grubosc=12, kolor=Qt.gray):
-        # Zamiana punktów na QPointF (QPainter pracuje na QPointF)
+        #to jeszcze analizować
         self.punkty = [QPointF(float(p[0]), float(p[1])) for p in punkty]
         self.grubosc = grubosc
         self.kolor_rury = kolor
@@ -14,7 +15,7 @@ class Rura:
         # Flaga informująca, czy w rurze płynie ciecz
         self.czy_plynie = False
         self.kolor_cieczy_zmieniony = QColor(255, 100, 0)  #kolor wody po podgrzaniu
-        self.temperuje_ciecz = False  # czy rura ma grzałkę/ogrzewa ciecz
+        self.temperuje_ciecz = False  #czy rura ma grzałkę/ogrzewa ciecz
 
     # Metoda zmieniająca stan przepływu (ON / OFF)
     def ustaw_przeplyw(self, plynie):
@@ -56,7 +57,7 @@ class Rura:
             
 class Grzalka:
     def __init__(self, rura, rozmiar=10):
-        # Rura, na której ma być grzałka
+        #Rura, na której ma być grzałka
         self.rura = rura
         self.rozmiar = rozmiar
         self.rura.temperuje_ciecz = True
@@ -64,9 +65,10 @@ class Grzalka:
     # Metoda rysująca grzałkę
     def draw(self, painter):
         punkt = self.rura.punkt_srodkowy()
+        
         if not punkt:
             return
-
+        
         cx, cy = punkt
         r1 = self.rozmiar
         r2 = self.rozmiar * 2
@@ -81,8 +83,12 @@ class Grzalka:
             int(cy - r1),
             int(2 * r1),
             int(2 * r1))
-        # Duże kółko wokół
-        painter.drawEllipse(int(cx - r2), int(cy - r2), int(2 * r2), int(2 * r2))
+        # Duże koło wokół małego
+        painter.drawEllipse(
+            int(cx - r2),
+            int(cy - r2),
+            int(2 * r2),
+            int(2 * r2))
 
 class Zbiornik:
     # Konstruktor zbiornika – ustawia pozycję, rozmiar i dane początkowe
@@ -154,7 +160,6 @@ class Zbiornik:
         painter.setPen(Qt.black)
         painter.drawText(int(self.x), int(self.y - 10), self.nazwa)
 
-# ----- KLASA SYMULACJI -----
 class SymulacjaKaskady(QWidget):
     # Główne okno aplikacji – zarządza całą symulacją
     def __init__(self):
@@ -173,7 +178,7 @@ class SymulacjaKaskady(QWidget):
         self.z15.aktualizuj_poziom()
 
         self.z2 = Zbiornik(350, 200, nazwa="Zbiornik 2")
-        self.z3 = Zbiornik(350, 450, nazwa="Zbiornik 3", kolor_cieczy=QColor(255, 100, 0)) # woda po nagrzaniu symbolicznie
+        self.z3 = Zbiornik(350, 450, nazwa="Zbiornik 3", kolor_cieczy=QColor(255, 100, 0)) # woda po nagrzaniu symbolicznie pomarańcz
 
         self.zbiorniki = [self.z1, self.z2, self.z3, self.z15]
 
@@ -190,18 +195,17 @@ class SymulacjaKaskady(QWidget):
         self.rura15 = Rura([p_start15, (p_start15[0], mid_y15), (p_koniec15[0], mid_y15), p_koniec15])
 
         # Rura 2: Z2 -> Z3
-
         p_start2 = self.z2.punkt_dol_srodek()
         p_koniec2 = self.z3.punkt_gora_srodek()
         mid_y2 = (p_start2[1] + p_koniec2[1]) / 2
         self.rura2 = Rura([p_start2, (p_start2[0], mid_y2), (p_koniec2[0], mid_y2), p_koniec2])
 
-        self.rury = [self.rura1, self.rura2, self.rura15]
+        self.rury = [self.rura1, self.rura15, self.rura2]
 
         #GRZAŁKA
         self.grzalka_rura2 = Grzalka(self.rura2)
 
-        # TIMER
+        #TIMER
         self.timer = QTimer()
         self.timer.timeout.connect(self.logika_przeplywu)
 
@@ -212,6 +216,19 @@ class SymulacjaKaskady(QWidget):
 
         self.running = False
         self.flow_speed = 0.8
+        #Procent uzupełnionego zbiornika w czasie - graf
+        self.wykres_app = pg.GraphicsLayoutWidget()
+        self.wykres_app.setWindowTitle("Poziom cieczy w Zbiorniku 3")
+        self.plot = self.wykres_app.addPlot(title="Poziom Z3")
+        self.plot.setYRange(0, 1)
+        self.krzywa = self.plot.plot(pen='b')
+        self.x_data = []
+        self.y_data = []
+        self.t = 0
+        self.wykres_timer = QTimer()
+        self.wykres_timer.timeout.connect(self.update_wykres)
+        self.wykres_timer.start(100)
+        self.wykres_app.show()
 
     # Włącz/wyłącz symulację
     def przelacz_symulacje(self):
@@ -250,7 +267,7 @@ class SymulacjaKaskady(QWidget):
         
         self.update()
 
-    # Rysowanie całej sceny
+    # Rysowanie wszystkiego
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -265,7 +282,13 @@ class SymulacjaKaskady(QWidget):
         # zbiorniki
         for z in self.zbiorniki:
             z.draw(p)
-
+    def update_wykres(self):
+        self.x_data.append(self.t)
+        self.y_data.append(self.z3.poziom)
+        self.krzywa.setData(self.x_data, self.y_data)
+        self.t += 1
+        
+#okno do wyświetlenia działania
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     okno = SymulacjaKaskady()
