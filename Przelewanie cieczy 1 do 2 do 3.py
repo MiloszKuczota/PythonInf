@@ -1,13 +1,13 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton
-from PyQt5.QtCore import Qt, QTimer, QPointF
-from PyQt5.QtGui import QPainter, QColor, QPen, QPainterPath
-import pyqtgraph as pg
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton # do przycisku czy okna
+from PyQt5.QtCore import Qt, QTimer, QPointF #Qt do konfiguracji różnych obiektów QPointF służy za zmianę tych liczb do float'a, którego używa się w rysowaniu
+from PyQt5.QtGui import QPainter, QColor, QPen, QPainterPath # do rysowania
+import pyqtgraph as pg # do wykresów
 
 class Rura:
     # __init__ – konstruktor rury, tworzy się przy tworzeniu obiektu
     def __init__(self, punkty, grubosc=12, kolor=Qt.gray):
-        #to jeszcze analizować
+        #punkty są tworzone dla każdego zbiornika osobno - zależne są od nich.
         self.punkty = [QPointF(float(p[0]), float(p[1])) for p in punkty]
         self.grubosc = grubosc
         self.kolor_rury = kolor
@@ -17,35 +17,36 @@ class Rura:
         self.kolor_cieczy_zmieniony = QColor(255, 100, 0)  #kolor wody po podgrzaniu
         self.temperuje_ciecz = False  #czy rura ma grzałkę/ogrzewa ciecz
 
-    # Metoda zmieniająca stan przepływu (ON / OFF)
+    # Metoda zmieniająca stan przepływu
     def ustaw_przeplyw(self, plynie):
         self.czy_plynie = plynie
 
     # Zwraca środek prostego odcinka rury do umieszczenia grzałki
     def punkt_srodkowy(self):
-        if len(self.punkty) < 3:
-            return None
+        if len(self.punkty) <3: #len odpowiada za długość, tutaj za długość tablicy z punktami
+            return None     #jeżeli jest mniej niż 3 punkty to nic się nie dzieje i koniec
         p1 = self.punkty[1]
         p2 = self.punkty[2]
         cx = (p1.x() + p2.x()) / 2
         cy = (p1.y() + p2.y()) / 2
         return cx, cy
+    #Średnie
 
     # Metoda rysująca rurę
     def draw(self, painter):
         if len(self.punkty) < 2:
-            return
+            return #nie działa jak punkty ma mniej niż 2
 
-        path = QPainterPath()
-        path.moveTo(self.punkty[0])
-        for p in self.punkty[1:]:
-            path.lineTo(p)
+        path = QPainterPath() #path to ścieżka, jaką coś musi przebyć podczas rysowania
+        path.moveTo(self.punkty[0]) #zaczyna się w punkcie punkty[0]
+        for p in self.punkty[1:]: # od punktu 1 do ostatniego
+            path.lineTo(p) #path łączy się między punktami w linii prostej 0->1->2...
 
         # 1. Rysowanie obudowy rury (zewnętrzna linia)
-        pen_rura = QPen(self.kolor_rury, self.grubosc, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        pen_rura = QPen(self.kolor_rury, self.grubosc, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin) #sposób tworzenia rury
         painter.setPen(pen_rura)
         painter.setBrush(Qt.NoBrush)
-        painter.drawPath(path)
+        painter.drawPath(path) 
 
         # 2. Rysowanie cieczy wewnątrz rury, tylko jeśli płynie
         if self.czy_plynie:
@@ -150,7 +151,7 @@ class Zbiornik:
             painter.drawRect(int(self.x + 3), int(y_start), int(self.width - 6), int(h_cieczy - 2))
 
         # 2. Rysowanie obrysu zbiornika
-        pen = QPen(Qt.green, 4)
+        pen = QPen(Qt.black, 4)
         pen.setJoinStyle(Qt.MiterJoin)
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
@@ -165,8 +166,8 @@ class SymulacjaKaskady(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Przelewanie cieczy w zbiornikach")
-        self.setFixedSize(900, 600)
-        self.setStyleSheet("background-color: #32;")
+        self.setFixedSize(800, 600)
+        self.setStyleSheet("background-color: white;")
 
         # --- ZBIORNIKI ---
         self.z1 = Zbiornik(50, 50, nazwa="Zbiornik 1")
@@ -203,7 +204,7 @@ class SymulacjaKaskady(QWidget):
         self.rury = [self.rura1, self.rura15, self.rura2]
 
         #GRZAŁKA
-        self.grzalka_rura2 = Grzalka(self.rura2)
+        self.grzalka_rura2 = Grzalka(self.rura2) 
 
         #TIMER
         self.timer = QTimer()
@@ -212,11 +213,12 @@ class SymulacjaKaskady(QWidget):
         # Przycisk start/stop symulacji
         self.btn = QPushButton("Start / Stop", self)
         self.btn.setGeometry(50, 550, 100, 30)
+        #aktywacja
         self.btn.clicked.connect(self.przelacz_symulacje)
 
         self.running = False
-        self.flow_speed = 0.8
-        #Procent uzupełnionego zbiornika w czasie - graf
+        self.flow_speed = 0.42
+        #Procent uzupełnionego zbiornika w czasie - graf, zasada działania
         self.wykres_app = pg.GraphicsLayoutWidget()
         self.wykres_app.setWindowTitle("Poziom cieczy w Zbiorniku 3")
         self.plot = self.wykres_app.addPlot(title="Poziom Z3")
@@ -287,7 +289,7 @@ class SymulacjaKaskady(QWidget):
         self.y_data.append(self.z3.poziom)
         self.krzywa.setData(self.x_data, self.y_data)
         self.t += 1
-        
+
 #okno do wyświetlenia działania
 if __name__ == '__main__':
     app = QApplication(sys.argv)
